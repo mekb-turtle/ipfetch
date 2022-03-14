@@ -27,7 +27,6 @@ fi
 #DATA="$(/bin/curl "https://ipinfo.io/$IP_?token=$TOKEN")"
 #printf "%s" "$DATA" > cache.json
 DATA="$(/bin/cat cache.json)"
-/bin/echo $DATA
 _BOGON="$(/bin/printf "%s" "$DATA" | /bin/jq -r .bogon)"
 _IP="$(/bin/printf "%s" "$DATA" | /bin/jq -r .ip)"
 if [[ "$_BOGON" == "true" ]]; then
@@ -50,13 +49,38 @@ if [[ ! -f "${_COUNTRY}.png" ]]; then
 	/bin/curl -o "${_COUNTRY}.png" -- \
 		"https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
 fi
-/bin/cat -- "${_COUNTRY}.png" | /bin/timg - -I -gx10
+FLAG_HEIGHT_=11
+FLAG_WIDTH_=$((${FLAG_HEIGHT_}*4))
+FLAG_HEIGHT_OFFSET_=1
+/bin/cat -- "${_COUNTRY}.png" | /bin/timg - -CIg${FLAG_WIDTH_}x${FLAG_HEIGHT_}
 builtin popd>/dev/null
-LINES=
-LINES=$LINES$'\n'a
-LINES=$LINES$'\n'b
-LINES=$LINES$'\n'c
-#/bin/printf "\x1b[10A\x1b[46Ca"
+LINE_=$FLAG_HEIGHT_
+printf "\x1b[%sA" "$((${FLAG_HEIGHT_}-${FLAG_HEIGHT_OFFSET_}))"
+print_line() {
+	if [[ ! -z "$1" || ! -z "$2" ]]; then
+		if [[ -z "$1" ]]; then
+			/bin/printf "\x1b[%sC %s%s\n" "$FLAG_WIDTH_" "$COLOR_VALUE_" "$2"
+		else
+			/bin/printf "\x1b[%sC %s%s: %s%s\n" "$FLAG_WIDTH_" "$COLOR_KEY_" "$1" "$COLOR_VALUE_" "$2"
+		fi
+		if [[ "$LINE_" != "0" ]]; then
+			LINE_=$((${LINE_}-1))
+		fi
+	fi
+}
+print_line "IP address"   "${_IP}"
+print_line "Host name"    "${_HOSTNAME}"
+print_line "Anycast"      "${_ANYCAST}"
+print_line "City"         "${_CITY}"
+print_line "Region"       "${_REGION}"
+print_line "Country"      "${_COUNTRY}"
+print_line "Location"     "${_LOCATION}"
+print_line "Organization" "${_ORGANIZATION}"
+print_line "Postal"       "${_POSTAL}"
+print_line "Timezone"     "${_TIMEZONE}"
+printf "\x1b[%sB" "$LINE_"
+builtin unset -f print_line
+builtin unset -v LINES
 PATH=$OLD_PATH
 }
 ipfetch $*
