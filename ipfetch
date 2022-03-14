@@ -6,16 +6,16 @@ CONFIG_DIR=$HOME/.config
 /bin/mkdir -p $CONFIG_DIR
 TOKEN_FILE=$CONFIG_DIR/ipinfo_token
 if [[ ! -f "$TOKEN_FILE" ]]; then
-	/bin/echo "token file does not exist, please create it at $TOKEN_FILE"
+	/bin/printf "token file does not exist, please create it at %s" "$TOKEN_FILE"
 	builtin return
 fi
 TOKEN="$(/bin/cat "$TOKEN_FILE")"
 if [[ -z "$TOKEN" ]]; then
-	/bin/echo "token file is blank, please create it at $TOKEN_FILE"
+	/bin/printf "token file is blank, please create it at %s" "$TOKEN_FILE"
 	builtin return
 fi
 if [[ ! -z "$1" ]]; then
-	if [[ "$1" == "--help" ]]; then /bin/echo "usage: ipfetch <ip>"; builtin return; fi
+	if [[ "$1" == "--help" ]]; then /bin/printf "%s" "usage: ipfetch <ip>"; builtin return; fi
 	IP_REGEX="^(((\:\:)?(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6]))|(((([a-f0-9]{1,4}\:\:?)|(\:\:))([a-f0-9]{1,4}){1,7})(\:\:(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6]))?))$"
 	if /bin/printf "%s" "$1" | /bin/grep -Ez "$IP_REGEX" > /dev/null; then
 		IP_="$1"
@@ -43,25 +43,23 @@ _ORGANIZATION="$( /bin/printf "%s" "$DATA" | /bin/jq -r .org)"
 _POSTAL="$(       /bin/printf "%s" "$DATA" | /bin/jq -r .postal)"
 _TIMEZONE="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .timezone)"
 /bin/mkdir -p $HOME/.cache/flags/
+FLAG_HEIGHT_=11
+FLAG_WIDTH_=$((${FLAG_HEIGHT_}*4))
+FLAG_HEIGHT_OFFSET_=1
 builtin pushd $HOME/.cache/flags/>/dev/null
 if [[ ! -f "${_COUNTRY}.png" ]]; then
 	/bin/rm -vf -- "${_COUNTRY}.png"
 	/bin/curl -o "${_COUNTRY}.png" -- \
 "https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
 fi
-FLAG_HEIGHT_=11
-FLAG_WIDTH_=$((${FLAG_HEIGHT_}*4))
-FLAG_HEIGHT_OFFSET_=1
-COLORS_="$(/bin/python -c "import colorsys; a = colorsys.rgb_to_hsv("$(/bin/magick convert "${_COUNTRY}.png" -format %c histogram:info:-|/bin/sort -n|/bin/tail -1|/bin/sed "s/.*: (//;s/).*//")"
-);"\
+COLORS_MAGICK_="$(/bin/magick convert "${_COUNTRY}.png" -format %c histogram:info:-|/bin/sort -n|/bin/tail -1|/bin/sed "s/.*: (//;s/).*//")"
+COLORS_="$(/bin/python -c "import colorsys; a = colorsys.rgb_to_hsv(${COLORS_MAGICK_});"\
 "light=colorsys.hsv_to_rgb(a[0],a[1],255);dark=colorsys.hsv_to_rgb(a[0],a[1],min(200,max(160,a[2])));"\
 "print(int(light[0]),int(light[1]),int(light[2]));print(int(dark[0]),int(dark[1]),int(dark[2]))"|/bin/sed "s/^(//;s/)$//;s/ /;/g")"
 COLOR_KEY_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f1)m"
 COLOR_COLON_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f2)m"
-/bin/cat -- "${_COUNTRY}.png" | /bin/timg - -CIg${FLAG_WIDTH_}x${FLAG_HEIGHT_}
-builtin popd>/dev/null
 LINE_=$FLAG_HEIGHT_
-printf "\x1b[%sA" "$((${FLAG_HEIGHT_}-${FLAG_HEIGHT_OFFSET_}))"
+printf "\x1b[s"
 print_line() {
 	if [[ ! -z "$1" || ! -z "$2" ]]; then
 		if [[ -z "$1" ]]; then
@@ -84,7 +82,9 @@ print_line "Location"     "${_LOCATION}"
 print_line "Organization" "${_ORGANIZATION}"
 print_line "Postal"       "${_POSTAL}"
 print_line "Timezone"     "${_TIMEZONE}"
-/bin/printf "\x1b[%sB" "$LINE_"
+/bin/printf "\x1b[u"
+/bin/cat -- "${_COUNTRY}.png" | /bin/timg - -CIg${FLAG_WIDTH_}x${FLAG_HEIGHT_}
+builtin popd>/dev/null
 builtin unset -f print_line
 builtin unset -v LINES
 PATH=$OLD_PATH
