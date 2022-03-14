@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 ipfetch() {
 OLD_PATH=$PATH
-PATH=/usr/bin
+PATH=
 CONFIG_DIR=$HOME/.config
 /bin/mkdir -p $CONFIG_DIR
 TOKEN_FILE=$CONFIG_DIR/ipinfo_token
@@ -9,7 +9,7 @@ if [[ ! -f "$TOKEN_FILE" ]]; then
 	/bin/echo "token file does not exist, please create it at $TOKEN_FILE"
 	builtin return
 fi
-TOKEN="$(cat "$TOKEN_FILE")"
+TOKEN="$(/bin/cat "$TOKEN_FILE")"
 if [[ -z "$TOKEN" ]]; then
 	/bin/echo "token file is blank, please create it at $TOKEN_FILE"
 	builtin return
@@ -20,7 +20,7 @@ if [[ ! -z "$1" ]]; then
 	if /bin/printf "%s" "$1" | /bin/grep -Ez "$IP_REGEX" > /dev/null; then
 		IP_="$1"
 	else
-		/bin/echo "not a valid IP address"
+		/bin/printf "not a valid IP address\n"
 		builtin return
 	fi
 fi
@@ -30,7 +30,7 @@ DATA="$(/bin/cat cache.json)"
 _BOGON="$(/bin/printf "%s" "$DATA" | /bin/jq -r .bogon)"
 _IP="$(/bin/printf "%s" "$DATA" | /bin/jq -r .ip)"
 if [[ "$_BOGON" == "true" ]]; then
-	/bin/echo "IP address $_IP doesn't exist"
+	/bin/printf "IP address %s doesn't exist\n" "$_IP"
 	builtin return
 fi
 _HOSTNAME="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .hostname)"
@@ -47,11 +47,17 @@ builtin pushd $HOME/.cache/flags/>/dev/null
 if [[ ! -f "${_COUNTRY}.png" ]]; then
 	/bin/rm -vf -- "${_COUNTRY}.png"
 	/bin/curl -o "${_COUNTRY}.png" -- \
-		"https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
+"https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
 fi
 FLAG_HEIGHT_=11
 FLAG_WIDTH_=$((${FLAG_HEIGHT_}*4))
 FLAG_HEIGHT_OFFSET_=1
+COLORS_="$(/bin/python -c "import colorsys; a = colorsys.rgb_to_hsv("$(/bin/magick convert "${_COUNTRY}.png" -format %c histogram:info:-|/bin/sort -n|/bin/tail -1|/bin/sed "s/.*: (//;s/).*//")"
+);"\
+"light=colorsys.hsv_to_rgb(a[0],a[1],255);dark=colorsys.hsv_to_rgb(a[0],a[1],min(200,max(160,a[2])));"\
+"print(int(light[0]),int(light[1]),int(light[2]));print(int(dark[0]),int(dark[1]),int(dark[2]))"|/bin/sed "s/^(//;s/)$//;s/ /;/g")"
+COLOR_KEY_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f1)m"
+COLOR_COLON_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f2)m"
 /bin/cat -- "${_COUNTRY}.png" | /bin/timg - -CIg${FLAG_WIDTH_}x${FLAG_HEIGHT_}
 builtin popd>/dev/null
 LINE_=$FLAG_HEIGHT_
@@ -59,9 +65,9 @@ printf "\x1b[%sA" "$((${FLAG_HEIGHT_}-${FLAG_HEIGHT_OFFSET_}))"
 print_line() {
 	if [[ ! -z "$1" || ! -z "$2" ]]; then
 		if [[ -z "$1" ]]; then
-			/bin/printf "\x1b[%sC %s%s\n" "$FLAG_WIDTH_" "$COLOR_VALUE_" "$2"
+			/bin/printf "\x1b[%sC %s%s\x1b[0m\n" "$FLAG_WIDTH_" "$COLOR_VALUE_" "$2"
 		else
-			/bin/printf "\x1b[%sC %s%s: %s%s\n" "$FLAG_WIDTH_" "$COLOR_KEY_" "$1" "$COLOR_VALUE_" "$2"
+			/bin/printf "\x1b[%sC %s%s\x1b[0m%s:\x1b[0m %s%s\x1b[0m\n" "$FLAG_WIDTH_" "$COLOR_KEY_" "$1" "$COLOR_COLON_" "$COLOR_VALUE_" "$2"
 		fi
 		if [[ "$LINE_" != "0" ]]; then
 			LINE_=$((${LINE_}-1))
@@ -78,7 +84,7 @@ print_line "Location"     "${_LOCATION}"
 print_line "Organization" "${_ORGANIZATION}"
 print_line "Postal"       "${_POSTAL}"
 print_line "Timezone"     "${_TIMEZONE}"
-printf "\x1b[%sB" "$LINE_"
+/bin/printf "\x1b[%sB" "$LINE_"
 builtin unset -f print_line
 builtin unset -v LINES
 PATH=$OLD_PATH
