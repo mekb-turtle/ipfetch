@@ -1,0 +1,62 @@
+#!/usr/bin/bash
+ipfetch() {
+OLD_PATH=$PATH
+PATH=/usr/bin
+CONFIG_DIR=$HOME/.config
+/bin/mkdir -p $CONFIG_DIR
+TOKEN_FILE=$CONFIG_DIR/ipinfo_token
+if [[ ! -f "$TOKEN_FILE" ]]; then
+	/bin/echo "token file does not exist, please create it at $TOKEN_FILE"
+	builtin return
+fi
+TOKEN="$(cat "$TOKEN_FILE")"
+if [[ -z "$TOKEN" ]]; then
+	/bin/echo "token file is blank, please create it at $TOKEN_FILE"
+	builtin return
+fi
+if [[ ! -z "$1" ]]; then
+	if [[ "$1" == "--help" ]]; then /bin/echo "usage: ipfetch <ip>"; builtin return; fi
+	IP_REGEX="^(((\:\:)?(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6]))|(((([a-f0-9]{1,4}\:\:?)|(\:\:))([a-f0-9]{1,4}){1,7})(\:\:(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6]))?))$"
+	if /bin/printf "%s" "$1" | /bin/grep -Ez "$IP_REGEX" > /dev/null; then
+		IP_="$1"
+	else
+		/bin/echo "not a valid IP address"
+		builtin return
+	fi
+fi
+#DATA="$(/bin/curl "https://ipinfo.io/$IP_?token=$TOKEN")"
+#printf "%s" "$DATA" > cache.json
+DATA="$(/bin/cat cache.json)"
+/bin/echo $DATA
+_BOGON="$(/bin/printf "%s" "$DATA" | /bin/jq -r .bogon)"
+_IP="$(/bin/printf "%s" "$DATA" | /bin/jq -r .ip)"
+if [[ "$_BOGON" == "true" ]]; then
+	/bin/echo "IP address $_IP doesn't exist"
+	builtin return
+fi
+_HOSTNAME="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .hostname)"
+_ANYCAST="$(      /bin/printf "%s" "$DATA" | /bin/jq -r .anycast)"
+_CITY="$(         /bin/printf "%s" "$DATA" | /bin/jq -r .city)"
+_REGION="$(       /bin/printf "%s" "$DATA" | /bin/jq -r .region)"
+_COUNTRY="$(      /bin/printf "%s" "$DATA" | /bin/jq -r .country)"
+_LOCATION="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .loc)"
+_ORGANIZATION="$( /bin/printf "%s" "$DATA" | /bin/jq -r .org)"
+_POSTAL="$(       /bin/printf "%s" "$DATA" | /bin/jq -r .postal)"
+_TIMEZONE="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .timezone)"
+/bin/mkdir -p $HOME/.cache/flags/
+builtin pushd $HOME/.cache/flags/>/dev/null
+if [[ ! -f "${_COUNTRY}.png" ]]; then
+	/bin/rm -vf -- "${_COUNTRY}.png"
+	/bin/curl -o "${_COUNTRY}.png" -- \
+		"https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
+fi
+/bin/cat -- "${_COUNTRY}.png" | /bin/timg - -I -gx10
+builtin popd>/dev/null
+LINES=
+LINES=$LINES$'\n'a
+LINES=$LINES$'\n'b
+LINES=$LINES$'\n'c
+#/bin/printf "\x1b[10A\x1b[46Ca"
+PATH=$OLD_PATH
+}
+ipfetch $*
