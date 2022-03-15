@@ -1,87 +1,86 @@
 #!/usr/bin/bash
 ipfetch() {
-OLD_PATH=$PATH
-PATH=
 CONFIG_DIR=$HOME/.config
-/bin/mkdir -p $CONFIG_DIR
+CACHE_DIR=$HOME/.cache
+mkdir -p $CONFIG_DIR
 TOKEN_FILE=$CONFIG_DIR/ipinfo_token
 if [[ ! -f "$TOKEN_FILE" ]]; then
-	/bin/printf "token file does not exist, please create it at %s" "$TOKEN_FILE"
-	builtin return
+	printf "token file does not exist, please create it at %s" "$TOKEN_FILE"
+	return
 fi
-TOKEN="$(/bin/cat "$TOKEN_FILE")"
+TOKEN="$(cat "$TOKEN_FILE")"
 if [[ -z "$TOKEN" ]]; then
-	/bin/printf "token file is blank, please create it at %s" "$TOKEN_FILE"
-	builtin return
+	printf "token file is blank, please create it at %s" "$TOKEN_FILE"
+	return
 fi
 if [[ ! -z "$1" ]]; then
-	if [[ "$1" == "--help" ]]; then /bin/printf "%s" "usage: ipfetch <ip>"; builtin return; fi
+	if [[ "$1" == "--help" ]]; then printf "%s" "usage: ipfetch <ip>"; return; fi
 	IP_REGEX="^(((\:\:)?(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6]))|(((([a-f0-9]{1,4}\:\:?)|(\:\:))([a-f0-9]{1,4}){1,7})(\:\:(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-6]))?))$"
-	if /bin/printf "%s" "$1" | /bin/grep -Ez "$IP_REGEX" > /dev/null; then
+	if printf "%s" "$1" | grep -Ez "$IP_REGEX" > /dev/null; then
 		IP_="$1"
 	else
-		/bin/printf "not a valid IP address\n"
-		builtin return
+		printf "not a valid IP address\n"
+		return
 	fi
 fi
-/bin/mkdir -p $HOME/.cache/ipfetch/
-builtin pushd $HOME/.cache/ipfetch/>/dev/null
+mkdir -p $CACHE_DIR/ipfetch/
+pushd $CACHE_DIR/ipfetch/>/dev/null
 IP_FILE_=$IP_
 if [[ -z "$IP_" ]]; then IP_FILE_=_; fi
 USE_CACHE_=no
 if [[ -f "./$IP_FILE_.res" && -f "./$IP_FILE_.status" ]]; then
-	if [[ "$(($(/bin/stat -c%Y -- "./$IP_FILE_.status")+3600))" -gt "$(/bin/date +%s)" ]]; then
+	if [[ "$(($(stat -c%Y -- "./$IP_FILE_.status")+3600))" -gt "$(date +%s)" ]]; then
 		USE_CACHE_=yes
 	fi
 fi
 if [[ "$USE_CACHE_" == "yes" ]]; then
-	STATUS="$(/bin/cat "./$IP_FILE_.status")"
-	DATA="$(/bin/cat "./$IP_FILE_.res")"
+	STATUS="$(cat "./$IP_FILE_.status")"
+	DATA="$(cat "./$IP_FILE_.res")"
 else
-	/bin/rm -f -- "./$IP_FILE_.res" "./$IP_FILE_.status"
-	STATUS="$(/bin/curl --no-progress-meter -w "%{http_code}\n" -o "./$IP_FILE_.res" "https://ipinfo.io/$IP_?token=$TOKEN")"
-	DATA="$(/bin/cat -- "./$IP_FILE_.res")"
-	/bin/printf "%s" "$STATUS" > "./$IP_FILE_.status"
+	rm -f -- "./$IP_FILE_.res" "./$IP_FILE_.status"
+	STATUS="$(curl --no-progress-meter -w "%{http_code}\n" -o "./$IP_FILE_.res" "https://ipinfo.io/$IP_?token=$TOKEN")"
+	DATA="$(cat -- "./$IP_FILE_.res")"
+	printf "%s" "$STATUS" > "./$IP_FILE_.status"
 fi
 if [[ "$STATUS" -lt 200 || "$STATUS" -ge 300 ]]; then
-	/bin/printf "status code %s not 200\n" "$STATUS"
-	builtin return
+	printf "status code %s not 200\n" "$STATUS"
+	return
 fi
-_BOGON="$(/bin/printf "%s" "$DATA" | /bin/jq -r .bogon)"
-_IP="$(/bin/printf "%s" "$DATA" | /bin/jq -r .ip)"
+_BOGON="$(printf "%s" "$DATA" | jq -r .bogon)"
+_IP="$(printf "%s" "$DATA" | jq -r .ip)"
 if [[ "$_BOGON" == "true" ]]; then
-	/bin/printf "IP address %s doesn't exist\n" "$_IP"
-	builtin return
+	printf "IP address %s doesn't exist\n" "$_IP"
+	return
 fi
-_HOSTNAME="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .hostname)"
-_ANYCAST="$(      /bin/printf "%s" "$DATA" | /bin/jq -r .anycast)"
-_CITY="$(         /bin/printf "%s" "$DATA" | /bin/jq -r .city)"
-_REGION="$(       /bin/printf "%s" "$DATA" | /bin/jq -r .region)"
-_COUNTRY="$(      /bin/printf "%s" "$DATA" | /bin/jq -r .country)"
-_LOCATION="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .loc)"
-_ORGANIZATION="$( /bin/printf "%s" "$DATA" | /bin/jq -r .org)"
-_POSTAL="$(       /bin/printf "%s" "$DATA" | /bin/jq -r .postal)"
-_TIMEZONE="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .timezone)"
+_HOSTNAME="$(     printf "%s" "$DATA" | jq -r .hostname)"
+_ANYCAST="$(      printf "%s" "$DATA" | jq -r .anycast)"
+_CITY="$(         printf "%s" "$DATA" | jq -r .city)"
+_REGION="$(       printf "%s" "$DATA" | jq -r .region)"
+_COUNTRY="$(      printf "%s" "$DATA" | jq -r .country)"
+_LOCATION="$(     printf "%s" "$DATA" | jq -r .loc)"
+_ORGANIZATION="$( printf "%s" "$DATA" | jq -r .org)"
+_POSTAL="$(       printf "%s" "$DATA" | jq -r .postal)"
+_TIMEZONE="$(     printf "%s" "$DATA" | jq -r .timezone)"
 FLAG_HEIGHT_=11
 FLAG_WIDTH_=$((${FLAG_HEIGHT_}*4))
 FLAG_HEIGHT_OFFSET_=1
 if [[ ! -f "${_COUNTRY}.png" ]]; then
-	/bin/rm -vf -- "${_COUNTRY}.png"
-	/bin/curl --no-progress-meter -o "${_COUNTRY}.png" -- \
-"https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
+	rm -vf -- "${_COUNTRY}.png"
+	curl --no-progress-meter -o "${_COUNTRY}.png" -- \
+"https://flagcdn.com/w1280/$(printf "%s" "${_COUNTRY}"|dd status=none conv=lcase).png"
 fi
-COLORS_MAGICK_="$(/bin/magick convert "${_COUNTRY}.png" -format %c histogram:info:-|/bin/sort -n|/bin/sed "s/.*: (//;s/).*//"|/bin/cut "-sd," "-f1-3"|/bin/grep -v "255,255,255"|/bin/tail -1)"
-COLORS_="$(/bin/python -c "import colorsys; a = colorsys.rgb_to_hsv(${COLORS_MAGICK_});"\
+COLORS_MAGICK_="$(magick convert "${_COUNTRY}.png" -format %c histogram:info:-|sort -n|sed "s/.*: (//;s/).*//"|cut "-sd," "-f1-3"|grep -v "255,255,255"|tail -1)"
+COLORS_="$(python -c "import colorsys; a = colorsys.rgb_to_hsv(${COLORS_MAGICK_});"\
 "light=colorsys.hsv_to_rgb(a[0],a[1],255);dark=colorsys.hsv_to_rgb(a[0],a[1],min(200,max(160,a[2])));"\
-"print(int(light[0]),int(light[1]),int(light[2]));print(int(dark[0]),int(dark[1]),int(dark[2]))"|/bin/sed "s/^(//;s/)$//;s/ /;/g")"
-COLOR_KEY_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f1)m"
-COLOR_COLON_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f2)m"
+"print(int(light[0]),int(light[1]),int(light[2]));print(int(dark[0]),int(dark[1]),int(dark[2]))"|sed "s/^(//;s/)$//;s/ /;/g")"
+COLOR_KEY_=$'\x1b'"[38;2;$(printf "%s" "$COLORS_"|cut -sd$'\n' -f1)m"
+COLOR_COLON_=$'\x1b'"[38;2;$(printf "%s" "$COLORS_"|cut -sd$'\n' -f2)m"
 LINE_=$FLAG_HEIGHT_
-/bin/clear
-/bin/printf "\x1b[H\x1b[2J\x1b[s"
+clear
+printf "\x1b[H\x1b[2J\x1b[s"
 print_line() {
 	if [[ ! -z "$1" && ! -z "$2" && "$2" != "null" ]]; then
-		/bin/printf "\x1b[%sC %s%s\x1b[0m%s:\x1b[0m %s%s\x1b[0m\n" "$FLAG_WIDTH_" "$COLOR_KEY_" "$1" "$COLOR_COLON_" "$COLOR_VALUE_" "$2"
+		printf "\x1b[%sC %s%s\x1b[0m%s:\x1b[0m %s%s\x1b[0m\n" "$FLAG_WIDTH_" "$COLOR_KEY_" "$1" "$COLOR_COLON_" "$COLOR_VALUE_" "$2"
 		if [[ "$LINE_" != "0" ]]; then
 			LINE_=$((${LINE_}-1))
 		fi
@@ -97,11 +96,10 @@ print_line "Location"     "${_LOCATION}"
 print_line "Organization" "${_ORGANIZATION}"
 print_line "Postal"       "${_POSTAL}"
 print_line "Timezone"     "${_TIMEZONE}"
-/bin/printf "\x1b[u"
-/bin/cat -- "${_COUNTRY}.png" | /bin/timg - -CIg${FLAG_WIDTH_}x${FLAG_HEIGHT_}
-builtin popd>/dev/null
-builtin unset -f print_line
-builtin unset -v LINES
-PATH=$OLD_PATH
+printf "\x1b[u"
+cat -- "${_COUNTRY}.png" | timg - -CIg${FLAG_WIDTH_}x${FLAG_HEIGHT_}
+popd>/dev/null
+unset -f print_line
+unset -v LINES
 }
 ipfetch $*
