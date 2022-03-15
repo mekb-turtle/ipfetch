@@ -39,7 +39,7 @@ if [[ "$USE_CACHE_" == "yes" ]]; then
 	DATA="$(/bin/cat "./$IP_FILE_.res")"
 else
 	/bin/rm -f -- "./$IP_FILE_.res" "./$IP_FILE_.status"
-	STATUS="$(/bin/curl -w "%{http_code}\n" -o "./$IP_FILE_.res" "https://ipinfo.io/$IP_?token=$TOKEN")"
+	STATUS="$(/bin/curl --no-progress-meter -w "%{http_code}\n" -o "./$IP_FILE_.res" "https://ipinfo.io/$IP_?token=$TOKEN")"
 	DATA="$(/bin/cat -- "./$IP_FILE_.res")"
 	/bin/printf "%s" "$STATUS" > "./$IP_FILE_.status"
 fi
@@ -67,7 +67,7 @@ FLAG_WIDTH_=$((${FLAG_HEIGHT_}*4))
 FLAG_HEIGHT_OFFSET_=1
 if [[ ! -f "${_COUNTRY}.png" ]]; then
 	/bin/rm -vf -- "${_COUNTRY}.png"
-	/bin/curl -o "${_COUNTRY}.png" -- \
+	/bin/curl --no-progress-meter -o "${_COUNTRY}.png" -- \
 "https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
 fi
 COLORS_MAGICK_="$(/bin/magick convert "${_COUNTRY}.png" -format %c histogram:info:-|/bin/sort -n|/bin/sed "s/.*: (//;s/).*//"|/bin/cut "-sd," "-f1-3"|/bin/grep -v "255,255,255"|/bin/tail -1)"
