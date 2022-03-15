@@ -24,9 +24,29 @@ if [[ ! -z "$1" ]]; then
 		builtin return
 	fi
 fi
-#DATA="$(/bin/curl "https://ipinfo.io/$IP_?token=$TOKEN")"
-#printf "%s" "$DATA" > cache.json
-DATA="$(/bin/cat cache.json)"
+/bin/mkdir -p $HOME/.cache/ipfetch/
+builtin pushd $HOME/.cache/ipfetch/>/dev/null
+IP_FILE_=$IP_
+if [[ -z "$IP_" ]]; then IP_FILE_=_; fi
+USE_CACHE_=no
+if [[ -f "./$IP_FILE_.res" && -f "./$IP_FILE_.status" ]]; then
+	if [[ "$(($(/bin/stat -c%Y -- "./$IP_FILE_.status")+3600))" -gt "$(/bin/date +%s)" ]]; then
+		USE_CACHE_=yes
+	fi
+fi
+if [[ "$USE_CACHE_" == "yes" ]]; then
+	STATUS="$(/bin/cat "./$IP_FILE_.status")"
+	DATA="$(/bin/cat "./$IP_FILE_.res")"
+else
+	/bin/rm -f -- "./$IP_FILE_.res" "./$IP_FILE_.status"
+	STATUS="$(/bin/curl -w "%{http_code}\n" -o "./$IP_FILE_.res" "https://ipinfo.io/$IP_?token=$TOKEN")"
+	DATA="$(/bin/cat -- "./$IP_FILE_.res")"
+	/bin/printf "%s" "$STATUS" > "./$IP_FILE_.status"
+fi
+if [[ "$STATUS" -lt 200 || "$STATUS" -ge 300 ]]; then
+	/bin/printf "status code %s not 200\n" "$STATUS"
+	builtin return
+fi
 _BOGON="$(/bin/printf "%s" "$DATA" | /bin/jq -r .bogon)"
 _IP="$(/bin/printf "%s" "$DATA" | /bin/jq -r .ip)"
 if [[ "$_BOGON" == "true" ]]; then
@@ -42,31 +62,26 @@ _LOCATION="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .loc)"
 _ORGANIZATION="$( /bin/printf "%s" "$DATA" | /bin/jq -r .org)"
 _POSTAL="$(       /bin/printf "%s" "$DATA" | /bin/jq -r .postal)"
 _TIMEZONE="$(     /bin/printf "%s" "$DATA" | /bin/jq -r .timezone)"
-/bin/mkdir -p $HOME/.cache/flags/
 FLAG_HEIGHT_=11
 FLAG_WIDTH_=$((${FLAG_HEIGHT_}*4))
 FLAG_HEIGHT_OFFSET_=1
-builtin pushd $HOME/.cache/flags/>/dev/null
 if [[ ! -f "${_COUNTRY}.png" ]]; then
 	/bin/rm -vf -- "${_COUNTRY}.png"
 	/bin/curl -o "${_COUNTRY}.png" -- \
 "https://flagcdn.com/w1280/$(/bin/printf "%s" "${_COUNTRY}"|/bin/dd status=none conv=lcase).png"
 fi
-COLORS_MAGICK_="$(/bin/magick convert "${_COUNTRY}.png" -format %c histogram:info:-|/bin/sort -n|/bin/tail -1|/bin/sed "s/.*: (//;s/).*//")"
+COLORS_MAGICK_="$(/bin/magick convert "${_COUNTRY}.png" -format %c histogram:info:-|/bin/sort -n|/bin/sed "s/.*: (//;s/).*//"|/bin/cut "-sd," "-f1-3"|/bin/grep -v "255,255,255"|/bin/tail -1)"
 COLORS_="$(/bin/python -c "import colorsys; a = colorsys.rgb_to_hsv(${COLORS_MAGICK_});"\
 "light=colorsys.hsv_to_rgb(a[0],a[1],255);dark=colorsys.hsv_to_rgb(a[0],a[1],min(200,max(160,a[2])));"\
 "print(int(light[0]),int(light[1]),int(light[2]));print(int(dark[0]),int(dark[1]),int(dark[2]))"|/bin/sed "s/^(//;s/)$//;s/ /;/g")"
 COLOR_KEY_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f1)m"
 COLOR_COLON_=$'\x1b'"[38;2;$(/bin/printf "%s" "$COLORS_"|/bin/cut -sd$'\n' -f2)m"
 LINE_=$FLAG_HEIGHT_
-printf "\x1b[s"
+/bin/clear
+/bin/printf "\x1b[H\x1b[2J\x1b[s"
 print_line() {
-	if [[ ! -z "$1" || ! -z "$2" ]]; then
-		if [[ -z "$1" ]]; then
-			/bin/printf "\x1b[%sC %s%s\x1b[0m\n" "$FLAG_WIDTH_" "$COLOR_VALUE_" "$2"
-		else
-			/bin/printf "\x1b[%sC %s%s\x1b[0m%s:\x1b[0m %s%s\x1b[0m\n" "$FLAG_WIDTH_" "$COLOR_KEY_" "$1" "$COLOR_COLON_" "$COLOR_VALUE_" "$2"
-		fi
+	if [[ ! -z "$1" && ! -z "$2" && "$2" != "null" ]]; then
+		/bin/printf "\x1b[%sC %s%s\x1b[0m%s:\x1b[0m %s%s\x1b[0m\n" "$FLAG_WIDTH_" "$COLOR_KEY_" "$1" "$COLOR_COLON_" "$COLOR_VALUE_" "$2"
 		if [[ "$LINE_" != "0" ]]; then
 			LINE_=$((${LINE_}-1))
 		fi
